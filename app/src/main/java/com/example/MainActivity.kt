@@ -143,6 +143,7 @@ class MainActivity : ComponentActivity() {
                     // 4. Écran de bibliothèque des plantes
                     composable(Screen.Library.route) {
                         PlantLibraryScreen(
+                            plantViewModel = plantViewModel,
                             favoritesViewModel = favoritesViewModel,
                             onNavigateBack = { navController.popBackStack() },
                             onNavigateToDetail = { plantId ->

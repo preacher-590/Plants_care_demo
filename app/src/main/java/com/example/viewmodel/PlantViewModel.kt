@@ -89,7 +89,66 @@ class PlantViewModel(
     private val _adviceState = MutableStateFlow(AdviceUiState())
     val adviceState: StateFlow<AdviceUiState> = _adviceState.asStateFlow()
 
-    // Plante sélectionnée pour l'écran de détail
+    // Liste des plantes en cache local (Room / Mock) pour la bibliothèque
+    private val _libraryPlants = MutableStateFlow<List<Plant>>(PlantData.mockPlants)
+    val libraryPlants: StateFlow<List<Plant>> = _libraryPlants.asStateFlow()
+
+    // Plantes filtrées pour la bibliothèque (recherche textuelle + sélection multiple de catégories)
+    private val _librarySearchQuery = MutableStateFlow("")
+    val librarySearchQuery: StateFlow<String> = _librarySearchQuery.asStateFlow()
+
+    private val _selectedSymptomCategories = MutableStateFlow<Set<String>>(emptySet())
+    val selectedSymptomCategories: StateFlow<Set<String>> = _selectedSymptomCategories.asStateFlow()
+
+    init {
+        // Chargement initial des plantes depuis le cache Room ou fallback PlantData
+        if (plantRepository != null) {
+            viewModelScope.launch {
+                plantRepository.getAllPlants().collect { result ->
+                    if (result is ResultState.Success && result.data.isNotEmpty()) {
+                        _libraryPlants.value = result.data.map { it.toPlant() }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Met à jour la requête de recherche textuelle dans la bibliothèque.
+     */
+    fun setLibrarySearchQuery(query: String) {
+        _librarySearchQuery.value = query
+    }
+
+    /**
+     * Bascule la sélection d'une catégorie de symptôme (support multi-sélection).
+     * Si la catégorie est "Toutes" ou vide, réinitialise la sélection.
+     */
+    fun toggleSymptomCategory(category: String) {
+        _selectedSymptomCategories.update { current ->
+            if (category.equals("Toutes", ignoreCase = true) || category.equals("Tous", ignoreCase = true)) {
+                emptySet()
+            } else {
+                if (current.contains(category)) {
+                    current - category
+                } else {
+                    current + category
+                }
+            }
+        }
+    }
+
+    /**
+     * Réinitialise les filtres de la bibliothèque pour la session en cours.
+     */
+    fun resetLibraryFilters() {
+        _librarySearchQuery.value = ""
+        _selectedSymptomCategories.value = emptySet()
+    }
+
+    /**
+     * Plante sélectionnée pour l'écran de détail
+     */
     private val _selectedPlant = MutableStateFlow<Plant?>(null)
     val selectedPlant: StateFlow<Plant?> = _selectedPlant.asStateFlow()
 

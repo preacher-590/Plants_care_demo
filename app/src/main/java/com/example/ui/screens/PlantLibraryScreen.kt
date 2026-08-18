@@ -1,9 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,35 +16,36 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.LocalFlorist
+import androidx.compose.material.icons.filled.FilterListOff
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -70,59 +66,112 @@ import com.example.ui.components.CondensedSafetyBadge
 import com.example.ui.components.EvidenceLevelBadge
 import com.example.ui.components.FavoriteButton
 import com.example.ui.components.PlantImage
+import com.example.ui.components.SymptomCategoryFilterBar
 import com.example.viewmodel.FavoritesViewModel
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.collectAsState
+import com.example.viewmodel.PlantViewModel
+import java.text.Normalizer
+
+/**
+ * Mapping des catégories de symptômes vers des mots-clés et affections associés.
+ */
+private val SYMPTOM_CATEGORY_KEYWORDS = mapOf(
+    "Digestif" to listOf("digestion", "digestif", "estomac", "ballonnement", "nausée", "nausee", "spasme", "foie", "repas"),
+    "Respiratoire" to listOf("gorge", "toux", "rhume", "bronch", "respiration", "respiratoire", "nez", "poumon", "orl", "grippe", "angine"),
+    "Sommeil" to listOf("sommeil", "insomnie", "nuit", "endormissement", "dormir", "nocturne", "somnifere"),
+    "Peau" to listOf("peau", "brulure", "brûlure", "cicatrisation", "coup de soleil", "eczema", "dermatologie", "rougeur", "irritation", "gercure", "plaie"),
+    "Stress & Anxiété" to listOf("stress", "anxiete", "anxiété", "nervosite", "nervosité", "calme", "relaxation", "surmenage", "moral", "depression"),
+    "Douleur" to listOf("migraine", "mal de tete", "maux de tete", "douleur", "articulation", "courbature", "crampe", "musculaire"),
+    "Immunitaire" to listOf("immunite", "immunité", "infection", "anti-infectieux", "antibacterien", "antiseptique", "tonique", "vitalite", "vitalité", "energie", "énergie", "hiver")
+)
+
+private val SYMPTOM_CATEGORIES_LIST = listOf(
+    "Digestif",
+    "Respiratoire",
+    "Sommeil",
+    "Peau",
+    "Stress & Anxiété",
+    "Douleur",
+    "Immunitaire"
+)
+
+private fun normalizeText(text: String): String {
+    val regex = "\\p{InCombiningDiacriticalMarks}+".toRegex()
+    val temp = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
+    return regex.replace(temp, "")
+}
 
 /**
  * Écran d'exploration de la Bibliothèque des plantes (catalogue complet).
- * Permet la recherche textuelle dynamique et le filtrage par mots-clés/symptômes.
+ * Permet la recherche textuelle dynamique et le filtrage combiné par multi-sélection de catégories de symptômes.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PlantLibraryScreen(
+    plantViewModel: PlantViewModel? = null,
     favoritesViewModel: FavoritesViewModel? = null,
     onNavigateBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     onNavigateToLogin: (() -> Unit)? = null
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategoryFilter by remember { mutableStateOf("Tous") }
+    // État local de la session (réinitialisé à chaque nouvelle ouverture d'écran)
+    var localSearchQuery by remember { mutableStateOf("") }
+    var localSelectedCategories by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showAuthRequiredDialog by remember { mutableStateOf(false) }
 
-    val favoriteIds = favoritesViewModel?.let {
+    // Utilisation des données Room / Cache local exposées par le ViewModel ou fallback PlantData
+    val allPlants: List<Plant> = if (plantViewModel != null) {
+        val plantsList by plantViewModel.libraryPlants.collectAsState()
+        plantsList
+    } else {
+        PlantData.mockPlants
+    }
+
+    val favoriteIds: Set<String> = favoritesViewModel?.let {
         val ids by it.favoritePlantIds.collectAsState()
         ids
     } ?: emptySet()
 
-    val filterCategories = listOf("Tous", "Sommeil", "Digestion", "Gorge", "Stress", "Peau", "Toux")
-
-    // Filtrage dynamique de la liste des plantes
-    val filteredPlants by remember(searchQuery, selectedCategoryFilter) {
+    // Filtrage combiné : (Catégorie A OU Catégorie B) ET Recherche textuelle
+    val filteredPlants: List<Plant> by remember(allPlants, localSearchQuery, localSelectedCategories) {
         derivedStateOf {
-            PlantData.mockPlants.filter { plant ->
-                val matchesQuery = if (searchQuery.isBlank()) {
+            allPlants.filter { plant: Plant ->
+                // 1. Condition recherche textuelle
+                val matchesQuery = if (localSearchQuery.isBlank()) {
                     true
                 } else {
-                    val query = searchQuery.trim().lowercase()
-                    plant.name.lowercase().contains(query) ||
-                            plant.scientificName.lowercase().contains(query) ||
-                            plant.category.lowercase().contains(query) ||
-                            plant.shortDescription.lowercase().contains(query) ||
-                            plant.ailmentsAndBenefits.any { it.lowercase().contains(query) } ||
-                            plant.matchedKeywords.any { it.lowercase().contains(query) }
+                    val normalizedQuery = normalizeText(localSearchQuery.trim())
+                    val normalizedName = normalizeText(plant.name)
+                    val normalizedSciName = normalizeText(plant.scientificName)
+                    val normalizedCat = normalizeText(plant.category)
+                    val normalizedDesc = normalizeText(plant.shortDescription)
+
+                    normalizedName.contains(normalizedQuery) ||
+                            normalizedSciName.contains(normalizedQuery) ||
+                            normalizedCat.contains(normalizedQuery) ||
+                            normalizedDesc.contains(normalizedQuery) ||
+                            plant.ailmentsAndBenefits.any { normalizeText(it).contains(normalizedQuery) } ||
+                            plant.matchedKeywords.any { normalizeText(it).contains(normalizedQuery) }
                 }
 
-                val matchesCategory = if (selectedCategoryFilter == "Tous") {
+                // 2. Condition catégorie de symptôme (OU logique entre les catégories sélectionnées)
+                val matchesCategory = if (localSelectedCategories.isEmpty()) {
                     true
                 } else {
-                    val categoryTag = selectedCategoryFilter.lowercase()
-                    plant.category.lowercase().contains(categoryTag) ||
-                            plant.ailmentsAndBenefits.any { it.lowercase().contains(categoryTag) } ||
-                            plant.matchedKeywords.any { it.lowercase().contains(categoryTag) }
+                    localSelectedCategories.any { selectedCategory ->
+                        val targetKeywords = SYMPTOM_CATEGORY_KEYWORDS[selectedCategory] ?: listOf(selectedCategory.lowercase())
+                        val normalizedCategoryName = normalizeText(selectedCategory)
+
+                        val plantKeywordsNormalized = plant.matchedKeywords.map { normalizeText(it) }
+                        val plantBenefitsNormalized = plant.ailmentsAndBenefits.map { normalizeText(it) }
+                        val plantCategoryNormalized = normalizeText(plant.category)
+
+                        plantCategoryNormalized.contains(normalizedCategoryName) ||
+                                targetKeywords.any { kw ->
+                                    val nKw = normalizeText(kw)
+                                    plantKeywordsNormalized.any { it.contains(nKw) } ||
+                                            plantBenefitsNormalized.any { it.contains(nKw) }
+                                }
+                    }
                 }
 
                 matchesQuery && matchesCategory
@@ -140,7 +189,7 @@ fun PlantLibraryScreen(
                             style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                         )
                         Text(
-                            text = "${filteredPlants.size} plantes disponibles",
+                            text = if (filteredPlants.size <= 1) "${filteredPlants.size} plante trouvée" else "${filteredPlants.size} plantes trouvées",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -173,15 +222,15 @@ fun PlantLibraryScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
                 OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    value = localSearchQuery,
+                    onValueChange = { localSearchQuery = it },
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("library_search_input"),
-                    placeholder = { Text("Rechercher une plante, nom scientifique ou mal...") },
+                    placeholder = { Text("Rechercher par nom, symptôme ou mal...") },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
@@ -190,8 +239,11 @@ fun PlantLibraryScreen(
                         )
                     },
                     trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
+                        if (localSearchQuery.isNotEmpty()) {
+                            IconButton(
+                                onClick = { localSearchQuery = "" },
+                                modifier = Modifier.testTag("library_clear_search_button")
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Clear,
                                     contentDescription = "Effacer la recherche"
@@ -208,37 +260,56 @@ fun PlantLibraryScreen(
                 )
             }
 
-            // Chips de filtres rapides par catégories/maux
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Barre de filtres par catégories de symptômes (FilterChip scrollable M3 avec multi-sélection)
+            SymptomCategoryFilterBar(
+                categories = SYMPTOM_CATEGORIES_LIST,
+                selectedCategories = localSelectedCategories,
+                onCategoryToggled = { category ->
+                    localSelectedCategories = if (localSelectedCategories.contains(category)) {
+                        localSelectedCategories - category
+                    } else {
+                        localSelectedCategories + category
+                    }
+                },
+                onResetAll = {
+                    localSelectedCategories = emptySet()
+                },
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+
+            // Indicateur textuel des filtres actifs et nombre de résultats
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(filterCategories) { category ->
-                    val isSelected = selectedCategoryFilter == category
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { selectedCategoryFilter = category },
-                        label = { Text(category) },
-                        leadingIcon = if (category == "Tous") {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.FilterList,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
+                val filterDesc = if (localSelectedCategories.isEmpty()) {
+                    "Toutes les catégories"
+                } else {
+                    localSelectedCategories.joinToString(", ")
                 }
+                Text(
+                    text = filterDesc,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text(
+                    text = "${filteredPlants.size} résultat${if (filteredPlants.size > 1) "s" else ""}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Liste principale des cartes de plantes
+            // Liste des plantes ou état vide explicatif
             if (filteredPlants.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -257,7 +328,7 @@ fun PlantLibraryScreen(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.SearchOff,
+                                    imageVector = Icons.Default.FilterListOff,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(36.dp)
@@ -272,10 +343,21 @@ fun PlantLibraryScreen(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Essayez un autre mot-clé ou modifiez le filtre sélectionné.",
+                            text = "Aucune plante ne correspond à la combinaison des filtres de catégories et de la recherche actuelle.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        OutlinedButton(
+                            onClick = {
+                                localSearchQuery = ""
+                                localSelectedCategories = emptySet()
+                            },
+                            modifier = Modifier.testTag("reset_all_filters_button")
+                        ) {
+                            Text("Réinitialiser les filtres")
+                        }
                     }
                 }
             } else {
@@ -361,20 +443,18 @@ private fun LibraryPlantCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .clickable { onClick() }
-            .testTag("library_plant_card_${plant.id}")
+            .clickable(onClick = onClick)
+            .testTag("plant_card_${plant.id}")
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Image réelle Wikimedia avec fallback
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
                     PlantImage(
                         imageUrl = plant.imageUrl,
@@ -382,113 +462,109 @@ private fun LibraryPlantCard(
                         imageLicense = plant.imageLicense,
                         plantName = plant.name,
                         colorHex = plant.colorHex,
-                        modifier = Modifier.fillMaxSize(),
-                        showAttribution = false,
-                        testTag = "library_plant_image_${plant.id}"
+                        modifier = Modifier
+                            .size(54.dp)
+                            .clip(RoundedCornerShape(12.dp))
                     )
-                }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
 
-                // Nom & Nom scientifique
-                Column(modifier = Modifier.weight(1f)) {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                        ) {
-                            Text(
-                                text = plant.category,
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        EvidenceLevelBadge(
-                            level = plant.scientificEvidenceLevel,
-                            isCompact = true,
-                            testTag = "library_evidence_badge_${plant.id}"
+                    Column {
+                        Text(
+                            text = plant.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = plant.scientificName,
+                            style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = plant.category,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = plant.name,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = plant.scientificName,
-                        style = MaterialTheme.typography.bodySmall.copy(fontStyle = FontStyle.Italic),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
 
-                if (onToggleFavorite != null) {
-                    FavoriteButton(
-                        isFavorite = isFavorite,
-                        onToggle = onToggleFavorite,
-                        plantName = plant.name,
-                        isCompact = true,
-                        testTag = "library_favorite_button_${plant.id}"
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = "Voir détail",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                // Bouton favori animé (M3)
+                FavoriteButton(
+                    isFavorite = isFavorite,
+                    onToggle = { onToggleFavorite?.invoke() },
+                    plantName = plant.name
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Description courte
+            // Badges de niveau de preuve scientifique
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                EvidenceLevelBadge(level = plant.scientificEvidenceLevel)
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Avertissement de sécurité / contre-indications condensées
+            CondensedSafetyBadge(
+                plant = plant
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Text(
                 text = plant.shortDescription,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 20.sp
+                overflow = TextOverflow.Ellipsis
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Badge condensé de contre-indication
-            CondensedSafetyBadge(plant = plant)
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Badges usages/maladies
+            // Liste des bienfaits / affections sous forme de chips
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                plant.ailmentsAndBenefits.take(3).forEach { ailment ->
+                plant.ailmentsAndBenefits.take(3).forEach { benefit ->
                     SuggestionChip(
-                        onClick = { onClick() },
+                        onClick = onClick,
                         label = {
                             Text(
-                                text = ailment,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = benefit,
+                                style = MaterialTheme.typography.labelSmall
                             )
-                        },
-                        shape = RoundedCornerShape(8.dp)
+                        }
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Pied de carte invitant à consulter la fiche
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Voir la fiche détaillée",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
             }
         }
     }
