@@ -100,6 +100,27 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
     }
 
+    // =========================================================================
+    // COLLECTION 'favorites' (Favoris / Plantes enregistrées)
+    // Document : favorites/{favoriteId}
+    // Structure : id = "${uid}_${plantId}", uid, plantId, dateAjout
+    // =========================================================================
+    match /favorites/{favoriteId} {
+      // Lecture : Strictement réservée au propriétaire (aucun accès croisé, même pour admin)
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+
+      // Création : Autorisée uniquement si l'UID dans le document correspond à l'utilisateur authentifié
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+
+      // Mise à jour : Strictement réservée au propriétaire
+      allow update: if isAuthenticated() 
+                    && resource.data.uid == request.auth.uid 
+                    && request.resource.data.uid == request.auth.uid;
+
+      // Suppression : Strictement réservée au propriétaire
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
     // Par sécurité, interdiction totale de lecture/écriture sur tout autre document
     match /{document=**} {
       allow read, write: if false;

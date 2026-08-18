@@ -44,6 +44,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,12 +58,18 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.filled.Lock
 import com.example.model.Plant
 import com.example.model.firestore.ScientificEvidenceLevel
 import com.example.model.firestore.VerificationStatus
 import com.example.ui.components.EvidenceLevelBadge
+import com.example.ui.components.FavoriteButton
 import com.example.ui.components.PlantImage
 import com.example.ui.components.SafetyInfoSection
+import com.example.viewmodel.FavoritesViewModel
 
 /**
  * Écran de détail affichant les informations complètes sur une plante sélectionnée.
@@ -69,8 +80,16 @@ import com.example.ui.components.SafetyInfoSection
 @Composable
 fun DetailScreen(
     plant: Plant?,
-    onNavigateBack: () -> Unit
+    favoritesViewModel: FavoritesViewModel? = null,
+    onNavigateBack: () -> Unit,
+    onNavigateToLogin: (() -> Unit)? = null
 ) {
+    var showAuthRequiredDialog by remember { mutableStateOf(false) }
+    val isFavorite = if (plant != null && favoritesViewModel != null) {
+        val favIds by favoritesViewModel.favoritePlantIds.collectAsState()
+        favIds.contains(plant.id)
+    } else false
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -88,6 +107,24 @@ fun DetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Retour"
+                        )
+                    }
+                },
+                actions = {
+                    if (plant != null && favoritesViewModel != null) {
+                        FavoriteButton(
+                            isFavorite = isFavorite,
+                            onToggle = {
+                                favoritesViewModel.toggleFavorite(
+                                    plantId = plant.id,
+                                    plantName = plant.name,
+                                    isCurrentlyFavorite = isFavorite,
+                                    onUnauthenticated = { showAuthRequiredDialog = true }
+                                )
+                            },
+                            plantName = plant.name,
+                            isCompact = false,
+                            testTag = "detail_favorite_button"
                         )
                     }
                 },
@@ -352,6 +389,42 @@ fun DetailScreen(
                 }
             }
         }
+    }
+
+    if (showAuthRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { showAuthRequiredDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text("Connexion requise", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Pour sauvegarder vos plantes favorites et les retrouver sur tous vos appareils, veuillez vous connecter.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAuthRequiredDialog = false
+                        onNavigateToLogin?.invoke()
+                    },
+                    modifier = Modifier.testTag("detail_dialog_login_button")
+                ) {
+                    Text("Se connecter")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuthRequiredDialog = false }) {
+                    Text("Plus tard")
+                }
+            }
+        )
     }
 }
 

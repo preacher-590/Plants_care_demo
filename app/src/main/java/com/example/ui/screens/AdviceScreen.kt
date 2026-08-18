@@ -75,9 +75,17 @@ import com.example.model.firestore.SymptomDocument
 import com.example.model.firestore.VerificationStatus
 import com.example.ui.components.CondensedSafetyBadge
 import com.example.ui.components.EvidenceLevelBadge
+import com.example.ui.components.FavoriteButton
 import com.example.ui.components.PlantImage
 import com.example.viewmodel.AdviceState
+import com.example.viewmodel.FavoritesViewModel
 import com.example.viewmodel.PlantViewModel
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 /**
  * Écran de demande de conseil en phytothérapie par saisie libre de symptôme ou d'affection.
@@ -87,10 +95,17 @@ import com.example.viewmodel.PlantViewModel
 @Composable
 fun AdviceScreen(
     viewModel: PlantViewModel,
+    favoritesViewModel: FavoritesViewModel? = null,
     onNavigateBack: () -> Unit,
-    onNavigateToDetail: (String) -> Unit
+    onNavigateToDetail: (String) -> Unit,
+    onNavigateToLogin: (() -> Unit)? = null
 ) {
     val adviceState by viewModel.adviceState.collectAsState()
+    var showAuthRequiredDialog by remember { mutableStateOf(false) }
+    val favoriteIds = favoritesViewModel?.let {
+        val ids by it.favoritePlantIds.collectAsState()
+        ids
+    } ?: emptySet()
 
     Scaffold(
         topBar = {
@@ -261,6 +276,15 @@ fun AdviceScreen(
                     AdviceSuccessView(
                         query = state.query,
                         matches = state.matches,
+                        favoriteIds = favoriteIds,
+                        onToggleFavorite = { plantId, plantName, isFav ->
+                            favoritesViewModel?.toggleFavorite(
+                                plantId = plantId,
+                                plantName = plantName,
+                                isCurrentlyFavorite = isFav,
+                                onUnauthenticated = { showAuthRequiredDialog = true }
+                            )
+                        },
                         onDetailClick = { plant ->
                             viewModel.selectPlant(plant)
                             onNavigateToDetail(plant.id)
@@ -285,6 +309,42 @@ fun AdviceScreen(
                 }
             }
         }
+    }
+
+    if (showAuthRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { showAuthRequiredDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text("Connexion requise", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Pour sauvegarder vos plantes favorites et les retrouver sur tous vos appareils, veuillez vous connecter.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAuthRequiredDialog = false
+                        onNavigateToLogin?.invoke()
+                    },
+                    modifier = Modifier.testTag("advice_dialog_login_button")
+                ) {
+                    Text("Se connecter")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuthRequiredDialog = false }) {
+                    Text("Plus tard")
+                }
+            }
+        )
     }
 }
 
@@ -376,6 +436,8 @@ private fun AdviceLoadingView() {
 private fun AdviceSuccessView(
     query: String,
     matches: List<PlantMatch>,
+    favoriteIds: Set<String>,
+    onToggleFavorite: (String, String, Boolean) -> Unit,
     onDetailClick: (Plant) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -425,8 +487,11 @@ private fun AdviceSuccessView(
                 items = matches,
                 key = { it.plant.id }
             ) { match ->
+                val isFav = favoriteIds.contains(match.plant.id)
                 PlantAdviceCard(
                     match = match,
+                    isFavorite = isFav,
+                    onToggleFavorite = { onToggleFavorite(match.plant.id, match.plant.name, isFav) },
                     onDetailClick = { onDetailClick(match.plant) }
                 )
             }
@@ -604,6 +669,8 @@ private fun AdviceErrorView(
 @Composable
 private fun PlantAdviceCard(
     match: PlantMatch,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
     onDetailClick: () -> Unit
 ) {
     Card(
@@ -688,14 +755,22 @@ private fun PlantAdviceCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.width(6.dp))
-
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
+                if (onToggleFavorite != null) {
+                    FavoriteButton(
+                        isFavorite = isFavorite,
+                        onToggle = onToggleFavorite,
+                        plantName = match.plant.name,
+                        isCompact = true,
+                        testTag = "advice_favorite_button_${match.plant.id}"
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

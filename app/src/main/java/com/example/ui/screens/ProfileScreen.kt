@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Shield
@@ -70,6 +71,7 @@ fun ProfileScreen(
     onNavigateBack: () -> Unit,
     onLoggedOut: () -> Unit,
     onNavigateToHistory: (() -> Unit)? = null,
+    onNavigateToFavorites: (() -> Unit)? = null,
     onNavigateToAdminLegal: (() -> Unit)? = null,
     onNavigateToAdminImage: (() -> Unit)? = null
 ) {
@@ -258,6 +260,32 @@ fun ProfileScreen(
                                 "Consulter mon historique de scans",
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                 color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    // Bouton vers les plantes favorites
+                    if (onNavigateToFavorites != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = onNavigateToFavorites,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("profile_favorites_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Favorite,
+                                contentDescription = null,
+                                tint = Color(0xFFD81B60),
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Mes Plantes Favorites",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = Color(0xFFD81B60)
                             )
                         }
                     }

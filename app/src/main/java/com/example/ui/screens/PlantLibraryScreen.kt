@@ -68,7 +68,14 @@ import com.example.model.Plant
 import com.example.model.PlantData
 import com.example.ui.components.CondensedSafetyBadge
 import com.example.ui.components.EvidenceLevelBadge
+import com.example.ui.components.FavoriteButton
 import com.example.ui.components.PlantImage
+import com.example.viewmodel.FavoritesViewModel
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
 
 /**
  * Écran d'exploration de la Bibliothèque des plantes (catalogue complet).
@@ -77,11 +84,19 @@ import com.example.ui.components.PlantImage
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PlantLibraryScreen(
+    favoritesViewModel: FavoritesViewModel? = null,
     onNavigateBack: () -> Unit,
-    onNavigateToDetail: (String) -> Unit
+    onNavigateToDetail: (String) -> Unit,
+    onNavigateToLogin: (() -> Unit)? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategoryFilter by remember { mutableStateOf("Tous") }
+    var showAuthRequiredDialog by remember { mutableStateOf(false) }
+
+    val favoriteIds = favoritesViewModel?.let {
+        val ids by it.favoritePlantIds.collectAsState()
+        ids
+    } ?: emptySet()
 
     val filterCategories = listOf("Tous", "Sommeil", "Digestion", "Gorge", "Stress", "Peau", "Toux")
 
@@ -270,14 +285,60 @@ fun PlantLibraryScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(filteredPlants, key = { it.id }) { plant ->
+                        val isFav = favoriteIds.contains(plant.id)
                         LibraryPlantCard(
                             plant = plant,
+                            isFavorite = isFav,
+                            onToggleFavorite = {
+                                favoritesViewModel?.toggleFavorite(
+                                    plantId = plant.id,
+                                    plantName = plant.name,
+                                    isCurrentlyFavorite = isFav,
+                                    onUnauthenticated = { showAuthRequiredDialog = true }
+                                )
+                            },
                             onClick = { onNavigateToDetail(plant.id) }
                         )
                     }
                 }
             }
         }
+    }
+
+    if (showAuthRequiredDialog) {
+        AlertDialog(
+            onDismissRequest = { showAuthRequiredDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text("Connexion requise", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("Pour sauvegarder vos plantes favorites et les retrouver sur tous vos appareils, veuillez vous connecter.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAuthRequiredDialog = false
+                        onNavigateToLogin?.invoke()
+                    },
+                    modifier = Modifier.testTag("library_dialog_login_button")
+                ) {
+                    Text("Se connecter")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAuthRequiredDialog = false }) {
+                    Text("Plus tard")
+                }
+            }
+        )
     }
 }
 
@@ -288,6 +349,8 @@ fun PlantLibraryScreen(
 @Composable
 private fun LibraryPlantCard(
     plant: Plant,
+    isFavorite: Boolean = false,
+    onToggleFavorite: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -370,12 +433,22 @@ private fun LibraryPlantCard(
                     )
                 }
 
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = "Voir détail",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
+                if (onToggleFavorite != null) {
+                    FavoriteButton(
+                        isFavorite = isFavorite,
+                        onToggle = onToggleFavorite,
+                        plantName = plant.name,
+                        isCompact = true,
+                        testTag = "library_favorite_button_${plant.id}"
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = "Voir détail",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

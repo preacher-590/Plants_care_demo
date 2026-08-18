@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalFlorist
 import androidx.compose.material.icons.filled.MenuBook
@@ -83,7 +84,8 @@ fun HomeScreen(
     onNavigateToLegalNotice: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit,
     onNavigateToAccount: () -> Unit = {},
-    onNavigateToHistory: () -> Unit = {}
+    onNavigateToHistory: () -> Unit = {},
+    onNavigateToFavorites: () -> Unit = {}
 ) {
     var showInitialDisclaimerDialog by remember { mutableStateOf(false) }
 
@@ -214,7 +216,21 @@ fun HomeScreen(
                         onClick = onNavigateToHistory
                     )
 
-                    // Action 3: Demander un conseil
+                    // Action 3: Mes Favoris
+                    ActionCard(
+                        title = "Mes Plantes Favorites",
+                        subtitle = "Accédez en un clic à vos remèdes enregistrés et leurs contre-indications",
+                        badgeText = "Favoris",
+                        icon = Icons.Default.Favorite,
+                        gradientColors = listOf(
+                            Color(0xFFD81B60),
+                            Color(0xFF8E24AA)
+                        ),
+                        testTag = "action_favorites_button",
+                        onClick = onNavigateToFavorites
+                    )
+
+                    // Action 4: Demander un conseil
                     ActionCard(
                         title = "Demander un conseil",
                         subtitle = "Trouvez les plantes adaptées à vos symptômes (maux de gorge, insomnie...)",

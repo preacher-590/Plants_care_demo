@@ -26,11 +26,13 @@ import com.example.ui.screens.PrivacyPolicyScreen
 import com.example.ui.screens.ProfileScreen
 import com.example.ui.screens.RegisterScreen
 import com.example.ui.screens.ScanHistoryScreen
+import com.example.ui.screens.FavoritesScreen
 import com.example.ui.screens.ScanScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.PlantCareTheme
 import com.example.viewmodel.AdminImageViewModel
 import com.example.viewmodel.AuthViewModel
+import com.example.viewmodel.FavoritesViewModel
 import com.example.viewmodel.LegalViewModel
 import com.example.viewmodel.PlantViewModel
 import com.example.viewmodel.ScanHistoryViewModel
@@ -47,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private val legalViewModel: LegalViewModel by viewModels()
     private val adminImageViewModel: AdminImageViewModel by viewModels()
     private val scanHistoryViewModel: ScanHistoryViewModel by viewModels()
+    private val favoritesViewModel: FavoritesViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,6 +70,14 @@ class MainActivity : ComponentActivity() {
 
                 val navigateToHistory = {
                     navController.navigate(Screen.History.route)
+                }
+
+                val navigateToFavorites = {
+                    navController.navigate(Screen.Favorites.route)
+                }
+
+                val navigateToLogin = {
+                    navController.navigate(Screen.Login.route)
                 }
 
                 NavHost(
@@ -100,7 +111,8 @@ class MainActivity : ComponentActivity() {
                                 navController.navigate(Screen.PrivacyPolicy.route)
                             },
                             onNavigateToAccount = navigateToAccount,
-                            onNavigateToHistory = navigateToHistory
+                            onNavigateToHistory = navigateToHistory,
+                            onNavigateToFavorites = navigateToFavorites
                         )
                     }
 
@@ -119,21 +131,25 @@ class MainActivity : ComponentActivity() {
                     composable(Screen.Advice.route) {
                         AdviceScreen(
                             viewModel = plantViewModel,
+                            favoritesViewModel = favoritesViewModel,
                             onNavigateBack = { navController.popBackStack() },
                             onNavigateToDetail = { plantId ->
                                 navController.navigate(Screen.Detail.createRoute(plantId))
-                            }
+                            },
+                            onNavigateToLogin = navigateToLogin
                         )
                     }
 
                     // 4. Écran de bibliothèque des plantes
                     composable(Screen.Library.route) {
                         PlantLibraryScreen(
+                            favoritesViewModel = favoritesViewModel,
                             onNavigateBack = { navController.popBackStack() },
                             onNavigateToDetail = { plantId ->
                                 plantViewModel.selectPlant(plantId)
                                 navController.navigate(Screen.Detail.createRoute(plantId))
-                            }
+                            },
+                            onNavigateToLogin = navigateToLogin
                         )
                     }
 
@@ -233,6 +249,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onNavigateToHistory = navigateToHistory,
+                            onNavigateToFavorites = navigateToFavorites,
                             onNavigateToAdminLegal = {
                                 navController.navigate(Screen.AdminEditLegal.route)
                             },
@@ -255,13 +272,30 @@ class MainActivity : ComponentActivity() {
                                 plantViewModel.resetScan()
                                 navController.navigate(Screen.Scan.route)
                             },
-                            onNavigateToLogin = {
-                                navController.navigate(Screen.Login.route)
-                            }
+                            onNavigateToLogin = navigateToLogin
                         )
                     }
 
-                    // 13. Écran d'Administration - Édition du Contenu Légal
+                    // 13. Écran des Plantes Favorites
+                    composable(Screen.Favorites.route) {
+                        FavoritesScreen(
+                            favoritesViewModel = favoritesViewModel,
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToPlantDetail = { plantId ->
+                                plantViewModel.selectPlant(plantId)
+                                navController.navigate(Screen.Detail.createRoute(plantId))
+                            },
+                            onNavigateToLibrary = {
+                                navController.navigate(Screen.Library.route)
+                            },
+                            onNavigateToAdvice = {
+                                navController.navigate(Screen.Advice.route)
+                            },
+                            onNavigateToLogin = navigateToLogin
+                        )
+                    }
+
+                    // 14. Écran d'Administration - Édition du Contenu Légal
                     composable(Screen.AdminEditLegal.route) {
                         AdminEditLegalScreen(
                             authViewModel = authViewModel,
@@ -270,7 +304,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // 14. Écran d'Administration - Photos Wikimedia Commons
+                    // 15. Écran d'Administration - Photos Wikimedia Commons
                     composable(Screen.AdminImage.route) {
                         AdminImageScreen(
                             authViewModel = authViewModel,
@@ -279,7 +313,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // 5. Écran de détail d'une plante
+                    // 16. Écran de détail d'une plante
                     composable(
                         route = Screen.Detail.route,
                         arguments = listOf(navArgument("plantId") { type = NavType.StringType })
@@ -292,7 +326,9 @@ class MainActivity : ComponentActivity() {
 
                         DetailScreen(
                             plant = selectedPlant,
-                            onNavigateBack = { navController.popBackStack() }
+                            favoritesViewModel = favoritesViewModel,
+                            onNavigateBack = { navController.popBackStack() },
+                            onNavigateToLogin = navigateToLogin
                         )
                     }
                 }
