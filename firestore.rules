@@ -1,0 +1,108 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // PLANTCARE FIRESTORE SECURITY RULES
+    // Publication Google Play Store & Protection RBAC (Rôles Utilisateurs)
+    // =========================================================================
+
+    // Fonction d'aide : Vérifie si la requête provient d'un utilisateur authentifié
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Fonction d'aide : Récupère le rôle d'un utilisateur depuis son document Firestore
+    function getUserRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    // Fonction d'aide : Vérifie si l'utilisateur demandeur possède le rôle 'admin'
+    function isAdmin() {
+      return isAuthenticated() && getUserRole(request.auth.uid) == 'admin';
+    }
+
+    // =========================================================================
+    // COLLECTION 'users'
+    // Document : users/{userId}
+    // =========================================================================
+    match /users/{userId} {
+      // Lecture : Autorisée uniquement pour le propriétaire du compte ou un administrateur
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+
+      // Création initiale : Un nouvel utilisateur peut créer son profil avec le rôle 'user' uniquement
+      allow create: if isAuthenticated() 
+                    && request.auth.uid == userId 
+                    && request.resource.data.role == 'user';
+
+      // Mise à jour : L'utilisateur peut modifier ses données MAIS le champ 'role' ne peut PAS être modifié depuis le client
+      allow update: if isAuthenticated() 
+                    && (request.auth.uid == userId || isAdmin())
+                    && request.resource.data.role == resource.data.role;
+
+      // Suppression : Autorisée pour le propriétaire ou un administrateur
+      allow delete: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // =========================================================================
+    // COLLECTION 'plants' (Fiches Plantes)
+    // =========================================================================
+    match /plants/{plantId} {
+      // Lecture publique pour l'ensemble des utilisateurs (invités ou connectés)
+      allow read: if true;
+
+      // Écriture : Seul un administrateur peut mettre à jour les métadonnées de photo
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly(['imageUrl', 'imageAuthor', 'imageLicense']);
+
+      // Création et suppression interdites depuis le client (réservées à la console Firebase)
+      allow create, delete: if false;
+    }
+
+    // =========================================================================
+    // COLLECTION 'symptoms' (Catégories de symptômes)
+    // =========================================================================
+    match /symptoms/{symptomId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // COLLECTION 'legalContent' (Mentions Légales & Politique de Confidentialité)
+    // Document : mentionsLegales / politiqueConfidentialite
+    // =========================================================================
+    match /legalContent/{docId} {
+      // Lecture publique pour tous les utilisateurs (invités ou connectés)
+      allow read: if true;
+
+      // Écriture strictement réservée aux administrateurs (role == 'admin')
+      allow write: if isAdmin();
+    }
+
+    // =========================================================================
+    // COLLECTION 'scanHistory' (Historique des scans personnels - RGPD)
+    // Document : scanHistory/{scanId}
+    // =========================================================================
+    match /scanHistory/{scanId} {
+      // Lecture : Strictement réservée à l'utilisateur propriétaire (l'administrateur n'a PAS accès aux scans des autres)
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+
+      // Création : L'utilisateur authentifié ne peut enregistrer un scan que pour son propre UID
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+
+      // Mise à jour : Strictement réservée au propriétaire
+      allow update: if isAuthenticated() 
+                    && resource.data.uid == request.auth.uid 
+                    && request.resource.data.uid == request.auth.uid;
+
+      // Suppression (droit à l'effacement RGPD) : Strictement réservée au propriétaire
+      allow delete: if isAuthenticated() && resource.data.uid == request.auth.uid;
+    }
+
+    // Par sécurité, interdiction totale de lecture/écriture sur tout autre document
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

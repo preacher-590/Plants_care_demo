@@ -1,0 +1,6 @@
+{
+  "name": "PlantCare",
+  "description": "Application Android d'identification de plantes et conseils en phytothérapie.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
