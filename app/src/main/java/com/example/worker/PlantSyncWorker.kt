@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.example.data.SyncPreferencesRepository
+import com.example.data.SyncPreferencesRepositoryImpl
 import com.example.database.PlantDatabase
 import com.example.network.PlantRepositoryImpl
 import com.example.network.ResultState
@@ -26,7 +27,7 @@ class PlantSyncWorker(
     override suspend fun doWork(): Result {
         return try {
             val database = PlantDatabase.getDatabase(applicationContext)
-            val preferences = SyncPreferencesRepository(applicationContext)
+            val preferences: SyncPreferencesRepository = SyncPreferencesRepositoryImpl(applicationContext)
             val repository = PlantRepositoryImpl(
                 plantDao = database.plantDao(),
                 symptomDao = database.symptomDao(),

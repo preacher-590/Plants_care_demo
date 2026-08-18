@@ -120,12 +120,15 @@ class AdviceMatchingTest {
 
     /**
      * Fake pour SyncPreferencesRepository (gestion des préférences de synchronisation).
+     * Implémente directement l'interface SyncPreferencesRepository sans nécessiter de mock DataStore.
      */
-    private class FakeSyncPreferencesRepository : SyncPreferencesRepository(
-        dataStore = org.mockito.Mockito.mock(androidx.datastore.core.DataStore::class.java)
-    ) {
-        override val lastSyncTimestamp: Flow<Long?> = flowOf(System.currentTimeMillis())
-        override suspend fun updateLastSyncTimestamp(timestamp: Long) {}
+    private class FakeSyncPreferencesRepository(
+        private var initialTimestamp: Long? = System.currentTimeMillis()
+    ) : SyncPreferencesRepository {
+        override val lastSyncTimestamp: Flow<Long?> = flowOf(initialTimestamp)
+        override suspend fun updateLastSyncTimestamp(timestamp: Long) {
+            initialTimestamp = timestamp
+        }
     }
 
     /**
