@@ -19,13 +19,15 @@ class PlantCareApplication : Application() {
     private fun initFirebaseSafely() {
         try {
             if (FirebaseApp.getApps(this).isEmpty()) {
+                // Initialisation standard automatique depuis google-services.json ou fallback configuré
                 val options = FirebaseOptions.Builder()
-                    .setApplicationId("1:100000000000:android:0000000000000000")
-                    .setProjectId("plantcare-app")
-                    .setApiKey("AIzaSyPlantCareFallbackKey1234567890")
+                    .setApplicationId("1:392990464767:android:283d9394872d586eee0aca")
+                    .setProjectId("plantcare-7a9a8")
+                    .setApiKey("AIzaSyCGThsVaNP1b_1-soOLIkyZpc1kRz5JG1g")
+                    .setStorageBucket("plantcare-7a9a8.firebasestorage.app")
                     .build()
                 FirebaseApp.initializeApp(this, options)
-                Log.i(TAG, "FirebaseApp initialisé avec succès (options de secours)")
+                Log.i(TAG, "FirebaseApp initialisé avec succès pour le projet plantcare-7a9a8")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Erreur lors de l'initialisation de FirebaseApp", e)

@@ -143,13 +143,14 @@ fun LoginScreen(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_plantcare_logo),
                     contentDescription = "Logo PlantCare",
-                    modifier = Modifier.size(64.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(48.dp)
                 )
             }
 
@@ -347,7 +348,7 @@ fun LoginScreen(
                                 authViewModel.signInWithGoogleToken(idToken, onLoginSuccess)
                             },
                             onError = { error ->
-                                authViewModel.updateLoginEmail(formState.email) // triggers state refresh
+                                authViewModel.setLoginError(error)
                             }
                         )
                     }
@@ -414,8 +415,8 @@ private suspend fun performGoogleSignIn(
 ) {
     try {
         val credentialManager = CredentialManager.create(context)
-        // Web Client ID standard de configuration Google Cloud pour Firebase
-        val webClientId = "YOUR_WEB_CLIENT_ID.apps.googleusercontent.com"
+        // Web Client ID OAuth de configuration Firebase (issu de google-services.json)
+        val webClientId = "392990464767-2gj9jp5eik7fo1o8po2qjb5cto6nujco.apps.googleusercontent.com"
 
         val googleIdOption = GetGoogleIdOption.Builder()
             .setFilterByAuthorizedAccounts(false)

@@ -130,13 +130,14 @@ fun RegisterScreen(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                Icon(
+                    painter = painterResource(id = R.drawable.ic_plantcare_logo),
                     contentDescription = "Logo PlantCare",
-                    modifier = Modifier.size(64.dp)
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(48.dp)
                 )
             }
 

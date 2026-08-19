@@ -721,9 +721,9 @@ private fun ScanSuccessContent(
 
                     // Image de référence (PlantImage Wikimedia ou Pl@ntNet referenceUrl)
                     PlantImage(
-                        imageUrl = plantInDb?.imageUrl ?: candidate.referenceImageUrl ?: "",
-                        imageAuthor = plantInDb?.imageAuthor ?: "",
-                        imageLicense = plantInDb?.imageLicense ?: "",
+                        imageUrl = plantInDb?.imageUrl ?: candidate.referenceImageUrl,
+                        imageAuthor = plantInDb?.imageAuthor,
+                        imageLicense = plantInDb?.imageLicense,
                         plantName = candidate.commonName,
                         colorHex = plantInDb?.colorHex ?: 0xFF4CAF50L,
                         modifier = Modifier

@@ -90,6 +90,10 @@ class AuthViewModel(
         _loginForm.value = _loginForm.value.copy(password = password, errorMessage = null)
     }
 
+    fun setLoginError(errorMessage: String) {
+        _loginForm.value = _loginForm.value.copy(errorMessage = errorMessage, isSubmitting = false)
+    }
+
     fun updateRegisterEmail(email: String) {
         _registerForm.value = _registerForm.value.copy(email = email, errorMessage = null)
     }
@@ -282,12 +286,17 @@ class AuthViewModel(
     }
 
     private fun mapFirebaseErrorToFrench(e: Throwable): String {
-        return when (e) {
-            is FirebaseAuthInvalidUserException -> "Aucun compte correspondant à cette adresse email."
-            is FirebaseAuthInvalidCredentialsException -> "Adresse email ou mot de passe incorrect."
-            is FirebaseAuthUserCollisionException -> "Un compte existe déjà avec cette adresse email."
-            is FirebaseAuthWeakPasswordException -> "Le mot de passe est trop faible. Utilisez au moins 6 caractères."
-            else -> e.localizedMessage ?: "Une erreur de connexion est survenue. Vérifiez votre réseau."
+        val message = e.localizedMessage ?: e.message ?: ""
+        return when {
+            e is FirebaseAuthInvalidUserException -> "Aucun compte correspondant à cette adresse email."
+            e is FirebaseAuthInvalidCredentialsException -> "Adresse email ou mot de passe incorrect."
+            e is FirebaseAuthUserCollisionException -> "Un compte existe déjà avec cette adresse email."
+            e is FirebaseAuthWeakPasswordException -> "Le mot de passe est trop faible. Utilisez au moins 6 caractères."
+            message.contains("API key not valid", ignoreCase = true) || message.contains("INVALID_API_KEY", ignoreCase = true) ->
+                "Configuration Firebase requise : Pour activer l'authentification en ligne, ajoutez votre fichier google-services.json ou configurez votre clé Firebase dans la console."
+            message.contains("network", ignoreCase = true) || message.contains("timeout", ignoreCase = true) ->
+                "Impossible de joindre le serveur d'authentification. Vérifiez votre connexion Internet."
+            else -> if (message.isNotBlank()) message else "Une erreur de connexion est survenue. Vérifiez votre réseau."
         }
     }
 }
